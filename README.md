@@ -1,6 +1,6 @@
 # Verdure Discovery Engine
 
-Background service that pulls local events from public feeds and organizer submissions, cleans and dedupes them, and builds a ranked, explained feed for every user. It runs on its own schedule with no UI: your app reads the JSON files it writes.
+Background service that pulls local events from public feeds and organizer submissions, cleans and dedupes them, and builds a ranked, explained feed for every user. It runs on its own automated schedule: app reads the JSON files it writes.
 
 ## Directory tree
 
@@ -66,13 +66,13 @@ export TICKETMASTER_API_KEY=your_key_here        # macOS/Linux
 setx TICKETMASTER_API_KEY "your_key_here"        # Windows (open a new terminal after)
 ```
 
-## Running it
+## Running the algorithm
 
 ```bash
 python run.py
 ```
 
-That's it. The engine:
+The engine:
 
 1. Fetches every enabled source in `config.yaml` immediately, then every `refresh_minutes` (default 60).
 2. Checks `data/users/` every 30 seconds. When a profile is added or edited (new interests, a save, a dismiss), it re-ranks feeds right away from stored events without re-fetching sources.
@@ -118,7 +118,7 @@ Then `sudo systemctl enable --now verdure`.
 0 * * * * cd /opt/verdure-discovery && .venv/bin/python run.py --once
 ```
 
-## How your app plugs in
+## How the event discovery algorithm plugs in
 
 | The app does this | By writing/reading |
 |---|---|
