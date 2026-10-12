@@ -8,7 +8,7 @@ from collections import Counter
 from pathlib import Path
 
 from .dedupe import deduplicate
-from .geo import AREAS, haversine_miles
+from .geo import AREAS, fill_coordinates, haversine_miles, load_venues
 from .models import Event, utcnow
 from .ranking import Ranked, rank_for_user
 from .sources import build_sources
@@ -48,8 +48,10 @@ def ingest(cfg: dict, base_dir: str, store: EventStore) -> tuple[list[Event], di
     return events, source_stats
 
 
-def build_index(raw: list[Event], cfg: dict) -> tuple[list[Event], list[Event], int]:
+def build_index(raw: list[Event], cfg: dict, venues: dict | None = None) -> tuple[list[Event], list[Event], int]:
     """Validate and dedupe. Returns (publishable, rejected, duplicates_removed)."""
+    if venues:
+        fill_coordinates(raw, venues)
     for ev in raw:
         validate(ev, cfg["region"], cfg["schedule"])
     good = [e for e in raw if is_publishable(e)]
@@ -175,7 +177,8 @@ def refresh(cfg: dict, base_dir: str) -> dict:
     """Full refresh cycle. Safe to call repeatedly."""
     store = EventStore(str(Path(base_dir) / cfg["paths"]["store"]))
     raw, source_stats = ingest(cfg, base_dir, store)
-    publishable, rejected, dupes = build_index(raw, cfg)
+    venues = load_venues(str(Path(base_dir) / cfg["paths"].get("venues_file", "data/venues.json")))
+    publishable, rejected, dupes = build_index(raw, cfg, venues)
     changes = store.upsert_many(publishable)
     changes["removed"] = store.prune({e.uid for e in publishable})
     store.save()

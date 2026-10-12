@@ -29,6 +29,37 @@ def haversine_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float
     return 2 * r * math.asin(math.sqrt(a))
 
 
+def load_venues(path: str) -> dict[str, tuple[float, float]]:
+    """Read the venue fallback table: {lowercase name or address text: {lat, lon}}."""
+    import json
+    from pathlib import Path
+
+    p = Path(path)
+    if not p.exists():
+        return {}
+    try:
+        raw = json.loads(p.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    return {k.lower(): (v["lat"], v["lon"]) for k, v in raw.items()
+            if isinstance(v, dict) and "lat" in v and "lon" in v}
+
+
+def fill_coordinates(events, venues: dict[str, tuple[float, float]]) -> int:
+    """Give coordinate-less in-person events a location from the venue table. Returns count filled."""
+    filled = 0
+    for ev in events:
+        if ev.lat is not None and ev.lon is not None:
+            continue
+        text = f"{ev.venue_name} {ev.address}".lower()
+        for key, (lat, lon) in venues.items():
+            if key in text:
+                ev.lat, ev.lon = lat, lon
+                filled += 1
+                break
+    return filled
+
+
 def resolve_point(area: Optional[str], lat: Optional[float], lon: Optional[float]):
     """Return (lat, lon) from explicit coordinates or a named area."""
     if lat is not None and lon is not None:

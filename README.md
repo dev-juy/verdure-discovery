@@ -1,6 +1,6 @@
 # Verdure Discovery Engine
 
-Background service that pulls local events from public feeds and organizer submissions, cleans and dedupes them, and builds a ranked, explained feed for every user. It runs on its own automated schedule: app reads the JSON files it writes.
+Background service that pulls local events from public feeds and organizer submissions, cleans and dedupes them, and builds a ranked, explained feed for every user. It runs on its own schedule with no UI: your app reads the JSON files it writes.
 
 ## Directory tree
 
@@ -28,6 +28,7 @@ verdure-discovery/
 │       ├── ticketmaster.py       # Ticketmaster Discovery API
 │       └── submissions.py        # organizer JSON drop folder
 ├── data/
+│   ├── venues.json               # fallback lat/lon for venues feeds don't geocode
 │   ├── users/
 │   │   └── example_family.json   # sample user profile
 │   └── submissions/
@@ -56,7 +57,7 @@ source .venv/bin/activate
 .venv\Scripts\activate
 
 pip install -r requirements.txt
-python -m pytest -q          # should print: 6 passed
+python -m pytest -q          # should print: 9 passed
 ```
 
 For Ticketmaster events, get a free key at developer.ticketmaster.com and set it as an environment variable (the engine skips that source if it's missing):
@@ -66,13 +67,13 @@ export TICKETMASTER_API_KEY=your_key_here        # macOS/Linux
 setx TICKETMASTER_API_KEY "your_key_here"        # Windows (open a new terminal after)
 ```
 
-## Running the algorithm
+## Running it
 
 ```bash
 python run.py
 ```
 
-The engine:
+That's it. The engine:
 
 1. Fetches every enabled source in `config.yaml` immediately, then every `refresh_minutes` (default 60).
 2. Checks `data/users/` every 30 seconds. When a profile is added or edited (new interests, a save, a dismiss), it re-ranks feeds right away from stored events without re-fetching sources.
@@ -118,7 +119,7 @@ Then `sudo systemctl enable --now verdure`.
 0 * * * * cd /opt/verdure-discovery && .venv/bin/python run.py --once
 ```
 
-## How the event discovery algorithm plugs in
+## How your app plugs in
 
 | The app does this | By writing/reading |
 |---|---|
@@ -181,6 +182,10 @@ Every feed entry includes `components`, `diversity_penalty`, and plain-language 
 
 **Notifications**: an event is queued when its score is at least `notify_threshold` (0.70), it starts within `notify_within_days` (4), the user hasn't saved it, and they haven't been notified about it before.
 
+## Venue coordinates
+
+Distance filtering needs coordinates, and many calendar feeds give only a venue name and address. Events with no coordinates are hidden from users who have a location set. `data/venues.json` is a fallback table: keys are lowercase text matched against an event's venue name and address, values are `{"lat": ..., "lon": ...}`. After each run, check `common_issues.not_geocoded` in `output/report.json`; if it's high, add the missing venues to that file. The four seeded entries are approximate, so verify them.
+
 ## Data quality report
 
 `output/report.json` refreshes every cycle with: per-source fetch status, publishable vs rejected counts, duplicates removed, % complete listings, most common missing fields, rejection reasons, and coverage by area and category. `output/rejected.json` lists each rejected listing and why, which is what you send back to organizers.
@@ -189,7 +194,7 @@ Blocking rules (listing rejected): missing title or start, end before start, alr
 
 ## Adding a source
 
-Any platform with an `.ics` feed needs no code, just a config entry:
+Any platform with an `.ics` feed needs no code, just a config entry (recurring events are expanded into dated occurrences automatically):
 
 ```yaml
   - id: sunnyvale_library

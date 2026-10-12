@@ -18,7 +18,7 @@ schedule:
 paths:
   store: "data/events.json"
   users_dir: "data/users"
-  submissions_dir: "data/submissions"
+  venues_file: "data/venues.json"   # fallback coordinates for venues a feed gives no lat/lon for
   output_dir: "output"
   log_file: "output/engine.log"
 
@@ -51,6 +51,7 @@ sources:
   - id: organizers
     name: "Organizer submissions"
     type: submissions
+    folder: "data/submissions"
     enabled: true
 
 ranking:

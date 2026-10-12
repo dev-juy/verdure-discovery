@@ -6,11 +6,12 @@ CivicPlus calendars, many library and parks calendars, Google Calendar exports.
 
 from __future__ import annotations
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 
+import recurring_ical_events
 from icalendar import Calendar
 
-from ..models import Event, clean_text, infer_categories, to_utc
+from ..models import Event, clean_text, infer_categories, to_utc, utcnow
 from .base import Source
 
 
@@ -51,10 +52,15 @@ def _categories(component) -> list[str]:
 
 
 def parse_ics(text: str | bytes, source_id: str, default_category: str | None = None,
-              organizer_fallback: str = "") -> list[Event]:
+              organizer_fallback: str = "", lookback_days: int = 2, lookahead_days: int = 60) -> list[Event]:
     cal = Calendar.from_ical(text)
     events: list[Event] = []
-    for comp in cal.walk("VEVENT"):
+    # Expand recurring events (RRULE/RDATE) into individual dated occurrences inside the window.
+    # Without this, a weekly storytime that began months ago would only appear as its first, past date.
+    now = utcnow()
+    window = recurring_ical_events.of(cal).between(now - timedelta(days=lookback_days),
+                                                   now + timedelta(days=lookahead_days))
+    for comp in window:
         start = _to_dt(comp.get("DTSTART"))
         if start is None:
             continue

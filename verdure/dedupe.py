@@ -68,21 +68,19 @@ def _merge(keep: Event, other: Event) -> Event:
 
 def deduplicate(events: list[Event]) -> tuple[list[Event], int]:
     """Return (unique events, number of duplicates removed)."""
-    # Bucket by start day so we only compare plausible pairs.
-    buckets: dict[str, list[Event]] = defaultdict(list)
-    for ev in sorted(events, key=lambda e: -e.quality_score):
-        buckets[ev.start.date().isoformat()].append(ev)
-
+    # Bucket by hour and compare against neighboring hours, so near-duplicates are caught
+    # even when they straddle an hour or midnight boundary.
+    buckets: dict[int, list[Event]] = defaultdict(list)
     unique: list[Event] = []
     removed = 0
-    for day_events in buckets.values():
-        kept: list[Event] = []
-        for ev in day_events:
-            match = next((k for k in kept if is_duplicate(k, ev)), None)
-            if match:
-                _merge(match, ev)
-                removed += 1
-            else:
-                kept.append(ev)
-        unique.extend(kept)
+    for ev in sorted(events, key=lambda e: -e.quality_score):
+        hour = int(ev.start.timestamp() // 3600)
+        nearby = [k for h in (hour - 1, hour, hour + 1) for k in buckets.get(h, [])]
+        match = next((k for k in nearby if is_duplicate(k, ev)), None)
+        if match:
+            _merge(match, ev)
+            removed += 1
+        else:
+            buckets[hour].append(ev)
+            unique.append(ev)
     return unique, removed
